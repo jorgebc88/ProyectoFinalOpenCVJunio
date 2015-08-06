@@ -18,9 +18,10 @@
   </build>
   <dependencies>
   	<dependency>
-  		<groupId>org.bytedeco</groupId>
-  		<artifactId>javacv</artifactId>
-  		<version>0.11</version>
-  	</dependency>
+		<groupId>org.bytedeco</groupId>
+		<artifactId>javacv</artifactId>
+		<version>0.11</version>
+	</dependency>
+
   </dependencies>
 </project>

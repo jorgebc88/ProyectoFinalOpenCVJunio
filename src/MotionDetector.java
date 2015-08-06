@@ -13,11 +13,6 @@
 import java.io.File;
 
 import org.bytedeco.javacpp.*;
-import org.bytedeco.javacpp.opencv_core.CvMat;
-import org.bytedeco.javacpp.opencv_core.Scalar;
-import org.bytedeco.javacpp.opencv_highgui.CvCapture;
-import org.bytedeco.javacpp.opencv_legacy.CvBlobDetector;
-import org.bytedeco.javacpp.opencv_legacy.CvBlobSeq;
 import org.bytedeco.javacv.*;
 
 import static org.bytedeco.javacpp.opencv_core.*;
@@ -25,27 +20,37 @@ import static org.bytedeco.javacpp.opencv_imgproc.*;
 
 public class MotionDetector {
     public static void main(String[] args) throws Exception {
-        OpenCVFrameGrabber grabber = new OpenCVFrameGrabber("C:/video.avi");
+        OpenCVFrameGrabber grabber = new OpenCVFrameGrabber("E:/video.avi");
         OpenCVFrameConverter.ToIplImage converter = new OpenCVFrameConverter.ToIplImage();
         grabber.start();
         opencv_video ov = new opencv_video();
 
-        IplImage frame = converter.convert(grabber.grab());
+        //IplImage frame = converter.convert(grabber.grab());
         IplImage image = null;
         IplImage prevImage = null;
         IplImage diff = null;
-        FFmpegFrameRecorder f = new FFmpegFrameRecorder(new File(""), 23);
-        FFmpegFrameGrabber g = new FFmpegFrameGrabber("");
+        File file = new File("E:/video.avi");
+        FFmpegFrameGrabber g = new FFmpegFrameGrabber(file);
+        g.start();
+        IplImage frame = null;
+        try{
+        	frame = converter.convert(grabber.grab());
+        }catch(Exception e){
+        	System.out.println(e);
+        }
 
         CanvasFrame canvasFrame = new CanvasFrame("Some Title");
         canvasFrame.setCanvasSize(frame.width(), frame.height());
 
         CvMemStorage storage = CvMemStorage.create();
-        CvBlobSeq blobSeq = new CvBlobSeq();
+        int i=0;
         while (canvasFrame.isVisible() && (frame = converter.convert(grabber.grab())) != null) {
-            cvClearMemStorage(storage);
+        	System.out.println(i);
+        	i++;
+            //cvClearMemStorage(storage);
 
             cvSmooth(frame, frame, CV_GAUSSIAN, 9, 9, 2, 2);
+            
             if (image == null) {
                 image = IplImage.create(frame.width(), frame.height(), IPL_DEPTH_8U, 1);
                 cvCvtColor(frame, image, CV_RGB2GRAY);
@@ -105,7 +110,8 @@ public class MotionDetector {
                 }
             }
         }
-        grabber.stop();
+        g.stop();
+        //grabber.stop();
         canvasFrame.dispose();
     }
 }
