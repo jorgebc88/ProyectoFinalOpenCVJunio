@@ -8,6 +8,7 @@ public class App {
 
 	public static void main(String[] args) {
 		CvCapture capture = cvCreateFileCapture("F:/Video MAte de Luna/100CANON/MVI_2558.MOV");
+//		CvCapture capture = cvCreateCameraCapture(CV_WINDOW_NORMAL);
 //		CvCapture capture = cvCreateFileCapture("C:/Users/jorgebc88/workspace123/javacv-examples-master/OpenCV2_Cookbook/data/bike.avi");
 
 		// Feature tracker
@@ -15,7 +16,7 @@ public class App {
 
 		// Create video processor instance
 		VideoProcessor processor = new VideoProcessor(capture, tracker);
-
+		
 		processor.run();
 
 		// Close the video file

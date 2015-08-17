@@ -37,8 +37,15 @@ public class VideoProcessor implements Runnable{
 
 	int codec = (int) cvGetCaptureProperty(capture, opencv_highgui.CV_CAP_PROP_FOURCC);
 
+	OpenCVFrameConverter.ToIplImage openCVConverter = new OpenCVFrameConverter.ToIplImage();
+	
+	Java2DFrameConverter java2DConverter = new Java2DFrameConverter();
+	
 	public VideoProcessor(CvCapture capture, FeatureTracker tracker) {
 		// mandar excepcion si capture == null;
+		if(capture == null){
+			throw new RuntimeException("CvCapture cannot be null");
+		}
 		this.capture = capture;
 		this.tracker = tracker;
 	}
@@ -60,7 +67,8 @@ public class VideoProcessor implements Runnable{
 				output = frame;
 			}
 			canvas.showImage(toBufferedImage(output));
-
+			
+			System.gc();
 			if (delay > 0) {
 //				Thread.sleep(delay);
 			}
@@ -68,10 +76,9 @@ public class VideoProcessor implements Runnable{
 		}
 
 	}
-
+	
+	
 	private BufferedImage toBufferedImage(IplImage ipl) {
-		OpenCVFrameConverter.ToIplImage openCVConverter = new OpenCVFrameConverter.ToIplImage();
-		Java2DFrameConverter java2DConverter = new Java2DFrameConverter();
 	    return java2DConverter.convert(openCVConverter.convert(ipl));
 	}
 

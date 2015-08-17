@@ -1,23 +1,17 @@
 package Final;
-import java.lang.reflect.Array;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
+
 
 import org.bytedeco.javacpp.opencv_core.CvPoint2D32f;
 import org.bytedeco.javacpp.opencv_core.IplImage;
 import org.bytedeco.javacpp.helper.opencv_core.AbstractCvScalar;
 import org.bytedeco.javacpp.opencv_core.*;
-import org.bytedeco.javacpp.opencv_imgproc.*;
-import org.bytedeco.javacpp.opencv_video.*;
 import org.bytedeco.javacpp.*;
 
 import static org.bytedeco.javacpp.opencv_core.*;
 import static org.bytedeco.javacpp.opencv_imgproc.*;
-import static org.bytedeco.javacpp.opencv_video.calcOpticalFlowPyrLK;
 import static org.bytedeco.javacpp.opencv_video.cvCalcOpticalFlowPyrLK;
-import static org.bytedeco.javacpp.opencv_imgproc.goodFeaturesToTrack;
-import static org.bytedeco.javacpp.opencv_imgproc.cvGoodFeaturesToTrack;
 
 public class FeatureTracker {
 
@@ -25,7 +19,7 @@ public class FeatureTracker {
 	private double qualityLevel;
 	private double minDistance;
 
-	private int minNumberOfTrackedPoints = 10;
+	private int minNumberOfTrackedPoints = 100;
 
 	private List<CvPoint2D32f> initialPositions = new ArrayList<CvPoint2D32f>();
 	private List<CvPoint2D32f> trackedPoints = new ArrayList<CvPoint2D32f>();
@@ -38,10 +32,28 @@ public class FeatureTracker {
 		this.minDistance = minDistance;
 	}
 
+	List<CvPoint2D32f> trackedPointsNewUnfiltered;
+	List<CvPoint2D32f> initialPositionsNew = new ArrayList<CvPoint2D32f>();
+	List<CvPoint2D32f> trackedPointsNew = new ArrayList<CvPoint2D32f>(); 
+	CvPoint2D32f trackedPointsNewUnfilteredOCV;
+	BytePointer trackingStatus;
+	IplImage grayCurrent;
+	IplImage output;
+	
+	CvPoint startPoint;
+	CvPoint endPoint;
+
+	CvPoint2D32f featurePoints;
+	IntPointer featureCount;
+
+	CvPoint2D32f dest;
+
+	
+
+	
 	public IplImage process(IplImage frame) {
 
-		IplImage grayCurrent = cvCreateImage(cvGetSize(frame), frame.depth(), 1);
-
+		grayCurrent = this.createGrayImage(frame, grayCurrent);
 		cvCvtColor(frame, grayCurrent, opencv_imgproc.CV_BGR2GRAY);
 
 		// 1. Check if additional new feature points should be added
@@ -53,13 +65,13 @@ public class FeatureTracker {
 
 		// for first image of the sequence
 		if (grayPrevious == null) {
-			grayPrevious = cvCreateImage(cvGetSize(grayCurrent), grayCurrent.depth(), grayCurrent.nChannels());
+			grayPrevious = this.createImage(grayCurrent, grayPrevious, grayCurrent.nChannels());
 			cvCopy(grayCurrent, grayPrevious, null);
 		}
 
 		// 2. track features
-		CvPoint2D32f trackedPointsNewUnfilteredOCV = new CvPoint2D32f(trackedPoints.size());
-		BytePointer trackingStatus = new BytePointer(trackedPoints.size());
+		trackedPointsNewUnfilteredOCV = new CvPoint2D32f(trackedPoints.size());
+		trackingStatus = new BytePointer(trackedPoints.size());
 		cvCalcOpticalFlowPyrLK(
 				grayPrevious, grayCurrent, // 2 consecutive images
 				null, null, // Unused
@@ -72,9 +84,9 @@ public class FeatureTracker {
 				cvTermCriteria(CV_TERMCRIT_ITER + CV_TERMCRIT_EPS, 30, 0.01),0 // defaults
 		);
 		// 2. loop over the tracked points to reject the undesirables
-		List<CvPoint2D32f> trackedPointsNewUnfiltered = toArray(trackedPointsNewUnfilteredOCV);
-		List<CvPoint2D32f> initialPositionsNew = new ArrayList<CvPoint2D32f>();
-		List<CvPoint2D32f> trackedPointsNew = new ArrayList<CvPoint2D32f>();
+		trackedPointsNewUnfiltered = toArray(trackedPointsNewUnfilteredOCV);
+		initialPositionsNew = new ArrayList<CvPoint2D32f>();
+		trackedPointsNew = new ArrayList<CvPoint2D32f>();
 
 		for (int i = 0; i < trackedPointsNewUnfiltered.size(); i++) {
 			if (acceptTrackedPoint(trackingStatus.get(i), trackedPoints.get(i), trackedPointsNewUnfiltered.get(i))) {
@@ -82,9 +94,9 @@ public class FeatureTracker {
 				trackedPointsNew.add(trackedPointsNewUnfiltered.get(i));
 			}
 		}
-
+		
 		// Prepare output
-		IplImage output = cvCreateImage(cvGetSize(frame), frame.depth(), frame.nChannels());
+		output = this.createImage(frame, output, frame.nChannels());
 		cvCopy(frame, output, null);
 
 		// 3. handle the accepted tracked points
@@ -93,17 +105,19 @@ public class FeatureTracker {
 		// 4. current points and image become previous ones
 		trackedPoints = trackedPointsNew;
 		initialPositions = initialPositionsNew;
-		grayPrevious = grayCurrent;
-
+		
+		cvCopy(grayCurrent, grayPrevious, null);
+		
 		return output;
 
 	}
-
+	
 	private void visualizeTrackedPoints(List<CvPoint2D32f> startPoints, List<CvPoint2D32f> endPoints, IplImage frame,
 			IplImage output) {
+		
 		for (int i = 0; i < startPoints.size(); i++) {
-			CvPoint startPoint = cvPointFrom32f(startPoints.get(i));
-			CvPoint endPoint = cvPointFrom32f(endPoints.get(i));
+			startPoint = cvPointFrom32f(startPoints.get(i));
+			endPoint = cvPointFrom32f(endPoints.get(i));
 			// Mark tracked point movement with a line
 			cvLine(output, startPoint, endPoint, AbstractCvScalar.WHITE, 1, CV_AA, 0);
 			// Mark starting point with circle
@@ -115,12 +129,12 @@ public class FeatureTracker {
 	private boolean acceptTrackedPoint(int status, CvPoint2D32f point0, CvPoint2D32f point1) {
 		return status != 0 &&
 				// if point has moved
-				(Math.abs(point0.x() - point1.x()) + Math.abs(point0.y() - point1.y()) > 2);
+				(Math.abs(point0.x() - point1.x()) + Math.abs(point0.y() - point1.y()) > 1);
 	}
-
+	
 	private List<CvPoint2D32f> detectFeaturePoints(IplImage grayFrame) {
-		CvPoint2D32f featurePoints = new CvPoint2D32f(maxCount);
-		IntPointer featureCount = new IntPointer(1);
+		featurePoints = new CvPoint2D32f(maxCount);
+		featureCount = new IntPointer(1);
 		featureCount.put(0, maxCount);
 
 		// detect the features
@@ -130,7 +144,7 @@ public class FeatureTracker {
 				featureCount, 
 				qualityLevel, // quality level
 				minDistance, // min distance between two features
-				null, 3, 0, 0.04); // Default parameters
+				null, 2, 1, 0.04); // Default parameters
 
 		// Select only detected features, end of the vector do not have valid
 		// entries
@@ -141,10 +155,9 @@ public class FeatureTracker {
 	private boolean shouldAddNewPoints() {
 		return trackedPoints.size() <= minNumberOfTrackedPoints;
 	}
-
+	
 	private CvPoint2D32f toNativeVector(List<CvPoint2D32f> srcObject) {
-
-		CvPoint2D32f dest = new CvPoint2D32f(srcObject.size());
+		dest = new CvPoint2D32f(srcObject.size());
 		int i = 0;
 		for (CvPoint2D32f srcElement : srcObject) {
 			// Since there is no way to `put` objects into a vector
@@ -165,14 +178,15 @@ public class FeatureTracker {
 	}
 
 	public List<CvPoint2D32f> toArray(CvPoint2D32f points) {
+		CvPoint2D32f pointsArray;
 		int oldPosition = points.position();
 		List<CvPoint2D32f> dest = new ArrayList<CvPoint2D32f>();
-		CvPoint2D32f aux;
+		
 		// Convert points to a Java ArrayList
 		for (int i = 0; i < points.capacity(); i += 2) {
-			aux = new CvPoint2D32f(1);
-			aux.put(points.get(i), points.get(i+1));
-			dest.add(aux);
+			pointsArray = new CvPoint2D32f(1);
+			pointsArray.put(points.get(i), points.get(i+1));
+			dest.add(pointsArray);
 		}
 
 		// Reset position explicitly to avoid issues from other uses of this
@@ -182,4 +196,18 @@ public class FeatureTracker {
 		return dest;
 	}
 
+	public IplImage createGrayImage(IplImage frame, IplImage dest){
+		if(dest == null){
+			dest = cvCreateImage(cvGetSize(frame), frame.depth(), 1);
+		}
+		return dest;
+	}
+	public IplImage createImage(IplImage src, IplImage dest, int nChannels){
+		if(dest == null){
+			dest = cvCreateImage(cvGetSize(src), src.depth(), nChannels);
+		}
+		return dest;
+	}
+	
+	
 }
