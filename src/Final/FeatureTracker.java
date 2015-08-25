@@ -98,7 +98,7 @@ public class FeatureTracker {
 		// Prepare output
 		output = this.createImage(frame, output, frame.nChannels());
 		cvCopy(frame, output, null);
-
+		//cvSet(output, CV_RGB(0,0,0));
 		// 3. handle the accepted tracked points
 		visualizeTrackedPoints(initialPositionsNew, trackedPointsNew, frame, output);
 
@@ -107,14 +107,14 @@ public class FeatureTracker {
 		initialPositions = initialPositionsNew;
 		
 		cvCopy(grayCurrent, grayPrevious, null);
-		
+
 		return output;
 
 	}
 	
 	private void visualizeTrackedPoints(List<CvPoint2D32f> startPoints, List<CvPoint2D32f> endPoints, IplImage frame,
 			IplImage output) {
-		
+
 		for (int i = 0; i < startPoints.size(); i++) {
 			startPoint = cvPointFrom32f(startPoints.get(i));
 			endPoint = cvPointFrom32f(endPoints.get(i));
